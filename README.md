@@ -18,7 +18,7 @@ This project is a backend for a market application, providing APIs for managing 
   - /cart/add: POST (add a product to the cart)
   - /register: POST (register a new user)
   - /login: POST (login)
-
+  - /reset-database: POST (reset DB)
 ## Contributing
 Feel free to submit issues and pull requests.
 
