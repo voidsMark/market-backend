@@ -73,10 +73,16 @@ func main() {
 
 	r.GET("/products", getProducts)
 	r.POST("/products", authMiddleware(), createProduct)
+
 	r.GET("/cart", authMiddleware(), getCart)
 	r.POST("/cart/add", authMiddleware(), addToCart)
+
 	r.POST("/register", register)
 	r.POST("/login", login)
+
+	// i feeling tired to reset the database by my hands
+	// here is endpoint for reseting the database
+	r.POST("/reset-database", resetDatabase)
 
 	r.Run(":8080")
 }
@@ -256,4 +262,14 @@ func generateTokens(userID uint) (string, string, error) {
 	})
 
 	return accessTokenString, refreshTokenString, nil
+}
+
+func resetDatabase(c *gin.Context) {
+	// Clear all tables
+	db.Exec("DROP TABLE IF EXISTS products, product_images, users, tokens, cart_items")
+
+	// Recreate the tables
+	db.AutoMigrate(&Product{}, &ProductImage{}, &User{}, &Token{}, &CartItem{})
+
+	c.JSON(200, gin.H{"message": "Database reset and reinitialized successfully"})
 }
