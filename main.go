@@ -6,7 +6,6 @@ import (
 
 	"github.com/dgrijalva/jwt-go"
 	"github.com/gin-gonic/gin"
-	"github.com/google/uuid"
 	"github.com/jinzhu/gorm"
 	_ "github.com/jinzhu/gorm/dialects/postgres"
 	"golang.org/x/crypto/bcrypt"
@@ -46,7 +45,7 @@ type User struct {
 type CartItem struct {
 	gorm.Model
 	UserID    uint
-	ProductID uuid.UUID
+	ProductID uint
 	Quantity  uint
 }
 
@@ -84,7 +83,7 @@ func main() {
 	// here is endpoint for reseting the database
 	r.POST("/reset-database", resetDatabase)
 
-	r.Run(":8080")
+	r.Run("127.0.0.1:8080")
 }
 
 func authMiddleware() gin.HandlerFunc {
@@ -97,18 +96,35 @@ func authMiddleware() gin.HandlerFunc {
 			return
 		}
 
-		token, err := jwt.Parse(tokenString, func(token *jwt.Token) (interface{}, error) {
+		parsedToken, err := jwt.Parse(tokenString, func(token *jwt.Token) (interface{}, error) {
 			return secretKey, nil
 		})
-		if err != nil || !token.Valid {
-			log.Println("Invalid token: ", token)
+		if err != nil || !parsedToken.Valid {
+			log.Println("Invalid token: ", parsedToken)
 			log.Println("err: ", err)
 			c.JSON(401, gin.H{"error": "Unauthorized"})
 			c.Abort()
 			return
 		}
 
-		c.Set("user_id", token.Claims.(jwt.MapClaims)["user_id"].(float64))
+		// Check for token in the database
+		var token Token
+		if err := db.Where("access_token = ?", tokenString).First(&token).Error; err != nil {
+			log.Println("Token not found in the database")
+			c.JSON(401, gin.H{"error": "Unauthorized"})
+			c.Abort()
+			return
+		}
+
+		// check for token expiration
+		if token.ExpiresAt < time.Now().Unix() {
+			log.Println("Token has expired")
+			c.JSON(401, gin.H{"error": "Unauthorized"})
+			c.Abort()
+			return
+		}
+
+		c.Set("user_id", parsedToken.Claims.(jwt.MapClaims)["user_id"].(float64))
 		c.Next()
 	}
 }
@@ -157,8 +173,8 @@ func getCart(c *gin.Context) {
 func addToCart(c *gin.Context) {
 	userID := uint(c.MustGet("user_id").(float64))
 	var input struct {
-		ProductID uuid.UUID `json:"product_id"`
-		Quantity  uint      `json:"quantity"`
+		ProductID uint `json:"product_id"`
+		Quantity  uint `json:"quantity"`
 	}
 	if err := c.ShouldBindJSON(&input); err != nil {
 		c.JSON(400, gin.H{"error": err.Error()})
